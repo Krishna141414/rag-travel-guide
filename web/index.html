@@ -1,0 +1,790 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Travel Library RAG</title>
+<meta name="description" content="Task 8 - RAG Travel Guide Q&A: answers travel questions from 25 Wikipedia articles with cited sources, and refuses what the documents don't cover.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230A1F1E'/%3E%3Cpath d='M7 23c5-9 9 2 18-12' stroke='%23F97316' stroke-width='3' fill='none' stroke-linecap='round'/%3E%3Ccircle cx='7' cy='23' r='3' fill='%2314B8A6'/%3E%3Ccircle cx='25' cy='11' r='3' fill='%23FDE68A'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="demo_data.js"></script>
+<style>
+:root {
+  --bg: #0A1F1E; --bg2: #0E2A28; --card: rgba(20, 52, 49, .55); --card-solid: #11302D;
+  --line: rgba(253, 230, 138, .12); --line2: rgba(20, 184, 166, .35);
+  --teal: #14B8A6; --saffron: #F97316; --cream: #FDE68A; --red: #F43F5E;
+  --text: #E8F1EE; --muted: #93B3AD; --dim: #5F807A;
+  --r: 18px; --mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.6 Inter, system-ui, sans-serif; overflow-x: hidden; }
+h1, h2, h3 { font-family: Fraunces, Georgia, serif; line-height: 1.15; margin: 0; }
+h2 { font-size: clamp(1.7rem, 3.4vw, 2.4rem); }
+a { color: var(--teal); }
+button { font: inherit; color: inherit; cursor: pointer; }
+.wrap { max-width: 1160px; margin: 0 auto; padding: 0 20px; }
+section { padding: 88px 0; position: relative; }
+.eyebrow { color: var(--saffron); font-weight: 600; letter-spacing: .14em; text-transform: uppercase; font-size: .78rem; margin-bottom: 10px; }
+.lead { color: var(--muted); max-width: 720px; margin: 12px 0 0; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: var(--r); backdrop-filter: blur(10px); }
+.reveal { opacity: 0; transform: translateY(26px); transition: opacity .8s ease, transform .8s ease; }
+.reveal.in { opacity: 1; transform: none; }
+
+/* ---------- hero ---------- */
+.hero { min-height: 92vh; display: flex; align-items: center; overflow: hidden; padding: 60px 0;
+  background: radial-gradient(1200px 600px at 85% 30%, rgba(20,184,166,.18), transparent 60%),
+              radial-gradient(900px 500px at 10% 90%, rgba(249,115,22,.14), transparent 60%), var(--bg); }
+.hero::before { content: ""; position: absolute; inset: 0; opacity: .5;
+  background: linear-gradient(120deg, rgba(20,184,166,.10), rgba(249,115,22,.10), rgba(253,230,138,.06), rgba(20,184,166,.10));
+  background-size: 300% 300%; animation: drift 18s ease-in-out infinite; }
+@keyframes drift { 50% { background-position: 100% 50%; } }
+.hero .wrap { position: relative; display: grid; grid-template-columns: 1.05fr .95fr; gap: 30px; align-items: center; width: 100%; }
+.badge { display: inline-flex; gap: 8px; align-items: center; padding: 6px 14px; border-radius: 999px; font-size: .82rem; font-weight: 600;
+  border: 1px solid var(--line2); background: rgba(20,184,166,.12); color: var(--cream); }
+.badge i { width: 8px; height: 8px; border-radius: 50%; background: var(--saffron); box-shadow: 0 0 10px var(--saffron); }
+.hero h1 { font-size: clamp(2.4rem, 6vw, 4.3rem); margin: 18px 0 14px; }
+.hero h1 span { background: linear-gradient(90deg, var(--teal), var(--cream) 50%, var(--saffron)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.hero p { font-size: 1.15rem; color: var(--muted); max-width: 540px; margin: 0 0 28px; }
+.btn { border: 0; border-radius: 999px; padding: 13px 26px; font-weight: 600; background: linear-gradient(90deg, var(--teal), var(--saffron));
+  color: #06201d; box-shadow: 0 10px 30px rgba(249,115,22,.25); transition: transform .2s, box-shadow .2s; }
+.btn:hover { transform: translateY(-2px); box-shadow: 0 14px 34px rgba(249,115,22,.35); }
+.hero-meta { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 26px; }
+.hero-meta span { font-size: .82rem; color: var(--muted); border: 1px solid var(--line); padding: 4px 12px; border-radius: 999px; }
+#map { width: 100%; max-height: 78vh; }
+#map .route { fill: none; stroke: url(#routeGrad); stroke-width: 2; stroke-linecap: round; stroke-dasharray: 6 7; animation: march 2.4s linear infinite; opacity: .85; }
+#map .route-draw { fill: none; stroke: rgba(253,230,138,.12); stroke-width: 7; stroke-linecap: round; }
+@keyframes march { to { stroke-dashoffset: -26; } }
+#map .place circle { fill: var(--teal); }
+#map .place .halo { fill: none; stroke: var(--teal); stroke-width: 1.5; animation: ping 3.2s ease-out infinite; transform-box: fill-box; transform-origin: center; }
+@keyframes ping { 0% { transform: scale(.6); opacity: .9; } 80%, 100% { transform: scale(3.2); opacity: 0; } }
+#map text { fill: var(--muted); font: 500 11px Inter, sans-serif; }
+
+/* ---------- requirement cards ---------- */
+.reqs { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; margin-top: 36px; }
+.req { text-align: left; padding: 20px; position: relative; transition: transform .25s, border-color .25s, box-shadow .25s; }
+.req:hover { transform: translateY(-4px); border-color: var(--line2); box-shadow: 0 12px 30px rgba(0,0,0,.25); }
+.req .ico { width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center; background: rgba(20,184,166,.14); color: var(--teal); margin-bottom: 12px; }
+.req h3 { font-family: Inter, sans-serif; font-size: 1rem; margin-bottom: 6px; }
+.req p { margin: 0; color: var(--muted); font-size: .9rem; line-height: 1.5; }
+.req .num { position: absolute; top: 18px; right: 52px; color: var(--dim); font: 500 .8rem var(--mono); }
+.check { position: absolute; top: 16px; right: 16px; width: 26px; height: 26px; border-radius: 50%; border: 1.5px solid var(--line); display: grid; place-items: center; transition: background .4s, border-color .4s; }
+.check svg path { stroke-dasharray: 20; stroke-dashoffset: 20; transition: stroke-dashoffset .6s ease .15s; }
+.req.done .check { background: var(--teal); border-color: var(--teal); box-shadow: 0 0 14px rgba(20,184,166,.6); }
+.req.done .check svg path { stroke-dashoffset: 0; }
+
+/* ---------- demo ---------- */
+.demo-top { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 16px; align-items: end; }
+.examples { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; margin: 30px 0 16px; }
+.ex { text-align: left; padding: 14px 16px; border-radius: 14px; border: 1px solid var(--line); background: var(--card); transition: border-color .2s, transform .2s, box-shadow .2s; }
+.ex:hover { border-color: var(--line2); transform: translateY(-2px); }
+.ex.active { border-color: var(--saffron); box-shadow: 0 0 0 1px var(--saffron), 0 0 24px rgba(249,115,22,.25); }
+.ex.pulse { animation: pulse 1.2s ease 2; }
+@keyframes pulse { 50% { box-shadow: 0 0 0 4px rgba(249,115,22,.5); } }
+.ex b { display: block; font-size: .95rem; }
+.ex small { color: var(--muted); font-size: .8rem; }
+.ex small.bad { color: #FDA4AF; }
+.controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; padding: 3px; background: rgba(0,0,0,.2); }
+.seg button { border: 0; background: none; padding: 5px 14px; border-radius: 999px; font-size: .82rem; color: var(--muted); }
+.seg button.on { background: var(--teal); color: #052421; font-weight: 600; }
+.ctl-label { font-size: .8rem; color: var(--dim); margin-right: 4px; }
+.live { display: none; align-items: center; gap: 10px; font-size: .85rem; color: var(--muted); }
+.live.show { display: flex; }
+.switch { width: 42px; height: 24px; border-radius: 999px; border: 1px solid var(--line2); background: rgba(0,0,0,.3); position: relative; padding: 0; }
+.switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: var(--muted); transition: transform .25s, background .25s; }
+.switch.on { background: rgba(249,115,22,.25); }
+.switch.on::after { transform: translateX(18px); background: var(--saffron); }
+.askrow { display: none; gap: 10px; margin: 0 0 16px; }
+.askrow.show { display: flex; }
+.askrow input { flex: 1; min-width: 0; padding: 12px 16px; border-radius: 12px; border: 1px solid var(--line2); background: rgba(0,0,0,.25); color: var(--text); font: inherit; }
+.askrow input:focus { outline: 2px solid var(--saffron); }
+.qbanner { padding: 16px 20px; display: flex; gap: 14px; align-items: center; min-height: 62px; margin-bottom: 26px; }
+.qbanner .q { font-family: Fraunces, serif; font-size: 1.2rem; }
+.qbanner .muted { color: var(--muted); }
+.spinner { width: 20px; height: 20px; border-radius: 50%; border: 2.5px solid rgba(253,230,138,.2); border-top-color: var(--saffron); animation: spin .8s linear infinite; flex: none; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.stepbar { position: relative; display: grid; grid-template-columns: repeat(5, 1fr); margin: 0 0 30px; }
+.stepbar .rail, .stepbar .fill { position: absolute; top: 21px; left: 10%; height: 3px; border-radius: 3px; }
+.stepbar .rail { right: 10%; background: var(--line); }
+.stepbar .fill { width: 0; max-width: 80%; background: linear-gradient(90deg, var(--teal), var(--saffron), var(--cream), var(--teal)); background-size: 300% 100%;
+  animation: flow 2.5s linear infinite; box-shadow: 0 0 12px rgba(249,115,22,.6); transition: width .9s ease; }
+@keyframes flow { to { background-position: -300% 0; } }
+.step { display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; position: relative; background: none; border: 0; padding: 0; }
+.step .dot { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: var(--bg2); border: 2px solid var(--line); color: var(--dim); font-weight: 700; transition: all .5s; }
+.step .lbl { font-size: .82rem; color: var(--dim); font-weight: 600; transition: color .5s; max-width: 130px; }
+.step.on .dot { border-color: var(--saffron); color: var(--cream); background: #3a2a12; box-shadow: 0 0 0 6px rgba(249,115,22,.15), 0 0 26px rgba(249,115,22,.6); }
+.step.on .lbl { color: var(--cream); }
+.step.done .dot { border-color: var(--teal); background: rgba(20,184,166,.2); color: var(--teal); }
+.step.done .lbl { color: var(--text); }
+.step.skip .dot { border-color: var(--red); color: var(--red); background: rgba(244,63,94,.12); }
+
+.panel { display: none; padding: 22px; margin-bottom: 18px; }
+.panel.show { display: block; animation: slidein var(--reveal, .7s) ease both; }
+@keyframes slidein { from { opacity: 0; transform: translateY(22px); } }
+.panel h3 { font-family: Inter, sans-serif; font-size: 1.05rem; display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+.panel h3 .n { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; background: var(--saffron); color: #2b1203; font-size: .8rem; }
+.panel .sub { color: var(--muted); font-size: .88rem; margin: 0 0 16px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.chip { font-size: .8rem; padding: 4px 11px; border-radius: 999px; border: 1px solid var(--line); background: rgba(0,0,0,.2); color: var(--muted); }
+.chip b { color: var(--cream); font-weight: 600; }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.textbox { background: rgba(0,0,0,.25); border: 1px solid var(--line); border-radius: 12px; padding: 14px; font-size: .86rem; line-height: 1.6; max-height: 260px; overflow: auto; overflow-wrap: anywhere; }
+.textbox .tag { display: block; font: 600 .7rem Inter; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); margin-bottom: 6px; }
+del.rm { background: rgba(244,63,94,.18); color: #FDA4AF; text-decoration-color: var(--red); border-radius: 3px; }
+mark.kept { background: none; color: var(--text); }
+.vec { display: flex; align-items: center; gap: 2px; height: 60px; margin-top: 6px; }
+.vec i { flex: 1; border-radius: 2px; transform-origin: center; transform: scaleY(0); transition: transform .6s ease; }
+.vec.go i { transform: scaleY(1); }
+
+.sources { display: grid; gap: 12px; }
+.src { padding: 14px 16px; border-radius: 14px; border: 1px solid var(--line); background: rgba(0,0,0,.2); opacity: 0; transform: translateX(-30px); transition: opacity .6s, transform .6s, border-color .4s, box-shadow .4s; }
+.src.in { opacity: 1; transform: none; }
+.src.flash { border-color: var(--cream); box-shadow: 0 0 0 2px var(--cream), 0 0 30px rgba(253,230,138,.35); }
+.src-head { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.src-head .id { font: 600 .82rem var(--mono); color: #2b1203; background: var(--cream); border-radius: 7px; padding: 1px 8px; }
+.src-head .t { font-weight: 600; }
+.src-head .cid { color: var(--dim); font: .78rem var(--mono); }
+.src-head .sc { margin-left: auto; font: 600 .9rem var(--mono); color: var(--cream); }
+.bar { position: relative; height: 10px; border-radius: 6px; background: rgba(255,255,255,.06); margin: 10px 0 8px; overflow: visible; }
+.bar .v { position: absolute; inset: 0 auto 0 0; width: 0; border-radius: 6px; background: linear-gradient(90deg, var(--teal), var(--saffron)); transition: width 1s cubic-bezier(.2,.8,.2,1); }
+.bar .v.low { background: linear-gradient(90deg, #7f1d1d, var(--red)); }
+.bar .thr { position: absolute; top: -5px; bottom: -5px; width: 2px; background: var(--cream); }
+.bar .thr::after { content: attr(data-l); position: absolute; top: -18px; left: 50%; transform: translateX(-50%); font: 600 .68rem var(--mono); color: var(--cream); white-space: nowrap; }
+.src details summary { cursor: pointer; color: var(--muted); font-size: .82rem; }
+.src p { margin: 6px 0 0; font-size: .86rem; color: var(--muted); }
+.gate { margin-top: 16px; padding: 14px 16px; border-radius: 12px; display: flex; gap: 12px; align-items: center; font-weight: 500; opacity: 0; transition: opacity .6s; }
+.gate.in { opacity: 1; }
+.gate.ok { background: rgba(20,184,166,.12); border: 1px solid var(--line2); }
+.gate.no { background: rgba(244,63,94,.12); border: 1px solid rgba(244,63,94,.45); }
+.gate .big { font: 700 1.3rem var(--mono); }
+
+.prompt { background: #071615; border: 1px solid var(--line); border-radius: 12px; padding: 14px; font: .8rem/1.6 var(--mono); max-height: 380px; overflow: auto; }
+.pl { opacity: 0; transform: translateY(8px); transition: opacity .5s, transform .5s, background .4s; border-left: 3px solid transparent; padding: 6px 10px; margin-bottom: 6px; border-radius: 6px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.pl.in { opacity: 1; transform: none; }
+.pl .k { font-weight: 600; }
+.pl.sys { border-color: var(--teal); } .pl.sys .k { color: var(--teal); }
+.pl.ctx { border-color: var(--cream); } .pl.ctx .k { color: var(--cream); }
+.pl.q { border-color: var(--saffron); } .pl.q .k { color: var(--saffron); }
+.pl.flash { background: rgba(253,230,138,.12); }
+.skipbox { padding: 18px; border-radius: 12px; border: 1px dashed rgba(244,63,94,.6); color: #FDA4AF; background: rgba(244,63,94,.06); }
+
+.final { border: 1px solid var(--line2); background: linear-gradient(160deg, rgba(20,184,166,.12), rgba(249,115,22,.06)); }
+.status { display: inline-flex; align-items: center; gap: 8px; padding: 5px 13px; border-radius: 999px; font-weight: 600; font-size: .82rem; }
+.status.ok { background: rgba(20,184,166,.18); color: #5EEAD4; border: 1px solid var(--line2); }
+.status.no { background: rgba(244,63,94,.16); color: #FDA4AF; border: 1px solid rgba(244,63,94,.5); }
+.answer { font-family: Fraunces, serif; font-size: clamp(1.15rem, 2.3vw, 1.45rem); line-height: 1.5; margin: 14px 0 10px; min-height: 2em; }
+.answer .caret { display: inline-block; width: 2px; height: 1.1em; background: var(--saffron); vertical-align: -3px; animation: blink .8s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+.cite { font: 600 .78rem var(--mono); border: 1px solid var(--cream); color: var(--cream); background: rgba(253,230,138,.1); border-radius: 6px; padding: 0 6px; margin: 0 2px; vertical-align: 3px; transition: background .2s; }
+.cite:hover { background: var(--cream); color: #2b1203; }
+.cite.auto { border-style: dashed; opacity: .85; }
+.meta { display: flex; flex-wrap: wrap; gap: 8px; color: var(--muted); font-size: .82rem; }
+.note { color: var(--muted); font-size: .82rem; margin-top: 8px; }
+details.tech { margin-top: 16px; border-top: 1px solid var(--line); padding-top: 12px; }
+details.tech summary { cursor: pointer; color: var(--teal); font-weight: 600; font-size: .9rem; }
+details.tech pre { background: #071615; border: 1px solid var(--line); border-radius: 10px; padding: 12px; font: .76rem/1.55 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 340px; overflow: auto; color: var(--muted); }
+.empty { text-align: center; color: var(--dim); padding: 30px; border: 1px dashed var(--line); border-radius: var(--r); }
+
+/* ---------- results ---------- */
+.stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(165px, 1fr)); gap: 14px; margin: 34px 0 22px; }
+.stat { padding: 18px; }
+.stat .v { font: 700 2.1rem Fraunces, serif; color: var(--cream); }
+.stat .v small { font-size: 1.1rem; color: var(--muted); }
+.stat .l { color: var(--muted); font-size: .84rem; }
+.stat.warn .v { color: var(--saffron); }
+.charts { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.chartbox { padding: 18px; }
+.chartbox h3 { font-family: Inter, sans-serif; font-size: .95rem; margin-bottom: 10px; }
+.chartbox .cv { position: relative; height: 290px; }
+.tablewrap { overflow-x: auto; margin-top: 16px; padding: 6px; }
+table { width: 100%; border-collapse: collapse; font-size: .86rem; }
+th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--dim); font-weight: 600; font-size: .74rem; text-transform: uppercase; letter-spacing: .08em; }
+td.num { font-family: var(--mono); white-space: nowrap; }
+.pill { font-size: .74rem; padding: 2px 9px; border-radius: 999px; white-space: nowrap; }
+.pill.ok { background: rgba(20,184,166,.18); color: #5EEAD4; }
+.pill.no { background: rgba(244,63,94,.16); color: #FDA4AF; }
+.findings { margin: 22px 0 0; padding: 20px 24px 20px 44px; }
+.findings li { margin: 6px 0; color: var(--text); }
+.findings li::marker { color: var(--saffron); }
+
+/* ---------- how it works ---------- */
+.flow { padding: 24px; margin-top: 30px; }
+.flow-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.flow-row .tagline { width: 100%; font: 600 .72rem Inter; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); margin-top: 6px; }
+.box { padding: 10px 14px; border-radius: 12px; border: 1px solid var(--line2); background: rgba(20,184,166,.08); font-size: .86rem; text-align: center; }
+.box small { display: block; color: var(--muted); font-size: .74rem; }
+.box.sf { border-color: rgba(249,115,22,.5); background: rgba(249,115,22,.08); }
+.box.cr { border-color: rgba(253,230,138,.5); background: rgba(253,230,138,.07); }
+.box.rd { border-color: rgba(244,63,94,.55); background: rgba(244,63,94,.08); }
+.arrow { color: var(--saffron); font-weight: 700; padding: 0 2px; }
+.code { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 20px; }
+.codecard { overflow: hidden; }
+.codecard .fn { padding: 10px 16px; border-bottom: 1px solid var(--line); font: 500 .8rem var(--mono); color: var(--cream); display: flex; gap: 8px; align-items: center; }
+.codecard .fn i { width: 10px; height: 10px; border-radius: 50%; background: var(--saffron); }
+.codecard pre { margin: 0; padding: 14px 16px; font: .74rem/1.6 var(--mono); overflow: auto; max-height: 360px; color: #CFE3DE; }
+.tok-k { color: var(--saffron); } .tok-s { color: #A7F3D0; } .tok-c { color: var(--dim); font-style: italic; }
+
+.limits { padding: 22px 24px 22px 44px; margin-top: 26px; }
+.limits li { margin: 8px 0; }
+.limits li::marker { color: var(--red); }
+footer { border-top: 1px solid var(--line); padding: 30px 0 40px; color: var(--muted); font-size: .88rem; }
+footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; }
+
+@media (max-width: 860px) {
+  .hero .wrap, .two, .charts, .code { grid-template-columns: 1fr; }
+  .hero { min-height: auto; }
+  #map { max-height: 360px; }
+  .stepbar .lbl { font-size: .7rem; }
+  .step .dot { width: 36px; height: 36px; }
+  .stepbar .rail, .stepbar .fill { top: 17px; }
+  section { padding: 64px 0; }
+}
+@media (max-width: 520px) {
+  .wrap { padding: 0 16px; }
+  .stepbar .lbl { display: none; }
+  .askrow { flex-direction: column; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition-duration: .01ms !important; }
+  html { scroll-behavior: auto; }
+  .reveal { opacity: 1; transform: none; }
+}
+</style>
+</head>
+<body>
+
+<!-- 1. Hero -->
+<header class="hero">
+  <div class="wrap">
+    <div>
+      <span class="badge"><i></i>Task 8 - RAG Travel Guide Q&amp;A</span>
+      <h1>The <span>Travel Library</span></h1>
+      <p>Ask a question about India's travel destinations and get a short answer written from 25 Wikipedia articles, with the source passages it came from, or an honest "not in the documents".</p>
+      <button class="btn" onclick="document.getElementById('demo').scrollIntoView()">Start demo &darr;</button>
+      <div class="hero-meta" id="heroMeta"></div>
+    </div>
+    <svg id="map" viewBox="0 0 600 620" role="img" aria-label="Route map connecting the 25 destinations in the knowledge base">
+      <defs><linearGradient id="routeGrad" x1="0" x2="1"><stop offset="0" stop-color="#14B8A6"/><stop offset=".5" stop-color="#FDE68A"/><stop offset="1" stop-color="#F97316"/></linearGradient></defs>
+    </svg>
+  </div>
+</header>
+
+<!-- 2. Requirements -->
+<section id="asks">
+  <div class="wrap">
+    <div class="eyebrow reveal">What this task asks</div>
+    <h2 class="reveal">Build an end-to-end RAG app grounded in real documents</h2>
+    <p class="lead reveal">Each card below is one part of the brief and how this project handles it. Click a card to jump to the demo step that shows it; a check mark appears once the demo has shown that step.</p>
+    <div class="reqs" id="reqs"></div>
+  </div>
+</section>
+
+<!-- 3. Live demo -->
+<section id="demo" style="background: linear-gradient(180deg, transparent, rgba(14,42,40,.6) 20%, rgba(14,42,40,.6) 80%, transparent)">
+  <div class="wrap">
+    <div class="demo-top">
+      <div>
+        <div class="eyebrow">Live demo</div>
+        <h2>Watch one question go through the pipeline</h2>
+      </div>
+      <div class="controls">
+        <span class="ctl-label">Speed</span>
+        <div class="seg" id="speed"><button data-s="slow">Slow</button><button data-s="medium" class="on">Medium</button><button data-s="fast">Fast</button></div>
+        <div class="live" id="live"><span>Run live</span><button class="switch" id="liveSwitch" aria-label="Run live with the local model"></button></div>
+      </div>
+    </div>
+    <div class="examples" id="examples"></div>
+    <form class="askrow" id="askrow"><input id="askInput" placeholder="Ask your own travel question, e.g. What is Hampi known for?" maxlength="300"><button class="btn" type="submit">Ask</button></form>
+    <div class="qbanner card" id="qbanner"><span class="muted">Pick an example above to run the pipeline.</span></div>
+
+    <div class="stepbar" id="stepbar">
+      <div class="rail"></div><div class="fill" id="fill"></div>
+    </div>
+
+    <div id="panels"><div class="empty" id="empty">Results for each step will appear here, one after another.</div></div>
+  </div>
+</section>
+
+<!-- 4. Results -->
+<section id="results">
+  <div class="wrap">
+    <div class="eyebrow reveal">Results</div>
+    <h2 class="reveal">Evaluation: 10 questions, 7 answerable + 3 not in the documents</h2>
+    <p class="lead reveal" id="resultsLead"></p>
+    <div class="stats" id="stats"></div>
+    <div class="charts">
+      <div class="chartbox card reveal"><h3>Best retrieval score per question vs the 0.50 threshold</h3><div class="cv"><canvas id="chScores"></canvas></div></div>
+      <div class="chartbox card reveal"><h3>Response time per question (seconds, CPU)</h3><div class="cv"><canvas id="chTime"></canvas></div></div>
+    </div>
+    <div class="tablewrap card reveal"><table id="table"></table></div>
+    <ul class="findings card reveal" id="findings"></ul>
+  </div>
+</section>
+
+<!-- 5. How it works -->
+<section id="how">
+  <div class="wrap">
+    <div class="eyebrow reveal">How it works</div>
+    <h2 class="reveal">Two phases: build the library once, then answer questions</h2>
+    <div class="flow card reveal">
+      <div class="flow-row"><div class="tagline">Build once (index/)</div>
+        <div class="box">25 Wikipedia articles<small>data/articles.json</small></div><span class="arrow">&rarr;</span>
+        <div class="box">Clean<small>IPA, [refs], empty sections</small></div><span class="arrow">&rarr;</span>
+        <div class="box">Chunk<small>500 chars, 100 overlap</small></div><span class="arrow">&rarr;</span>
+        <div class="box">Embed<small>all-MiniLM-L6-v2, 384-d</small></div><span class="arrow">&rarr;</span>
+        <div class="box cr">FAISS IndexFlatIP<small id="flowChunks"></small></div>
+      </div>
+      <div class="flow-row"><div class="tagline">Every question</div>
+        <div class="box sf">Question</div><span class="arrow">&rarr;</span>
+        <div class="box">Embed</div><span class="arrow">&rarr;</span>
+        <div class="box cr">Top-3 chunks<small>cosine scores</small></div><span class="arrow">&rarr;</span>
+        <div class="box sf">best &ge; 0.50 ?</div>
+      </div>
+      <div class="flow-row"><div class="tagline">&ensp;&ensp;yes</div>
+        <div class="box">Prompt<small>rules + [1] [2] [3] + question</small></div><span class="arrow">&rarr;</span>
+        <div class="box">Qwen2.5-0.5B-Instruct<small>greedy, 160 tokens, CPU</small></div><span class="arrow">&rarr;</span>
+        <div class="box cr">Answer + [n] citations<small>+ source cards</small></div>
+      </div>
+      <div class="flow-row"><div class="tagline">&ensp;&ensp;no</div>
+        <div class="box rd">"I couldn't find this in the travel guide documents."<small>LLM is not called</small></div>
+      </div>
+    </div>
+    <div class="code" id="code"></div>
+    <h3 class="reveal" style="margin-top:56px;font-size:1.6rem">Limitations</h3>
+    <ul class="limits card reveal">
+      <li><b>Small LLM.</b> Qwen2.5-0.5B gives short, sometimes minimal answers ("December 1961") and writes its own [n] citation only 1 time in 7; the rest are matched by word overlap and shown dashed as <code>[n]*</code>.</li>
+      <li><b>Thin threshold margin.</b> Out-of-scope questions scored 0.32-0.49 and answerable ones 0.62-0.77 in the evaluation, but a paraphrase like "houseboat cruise through backwaters" scores only 0.41 and gets refused, while "capital of Brazil" reaches 0.47 by matching Goa's Portuguese history.</li>
+      <li><b>CPU speed.</b> Answers take ~2-5 s after the models load; the first request after starting the app takes longer.</li>
+      <li><b>Small library.</b> Only 25 Indian destinations from a Wikipedia snapshot: anything outside them, or newer than the snapshot, is "not in documents".</li>
+      <li><b>No reranker or hybrid search.</b> A name-only question like "What is the Hawa Mahal?" retrieves Hampi first; BM25 + vectors or a cross-encoder would help (Task 9).</li>
+    </ul>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>Built by <b>Krishna</b> - VoidMain internship, Task 8. Article text from <a href="https://en.wikipedia.org/">Wikipedia</a> (CC BY-SA 4.0).</span>
+    <a href="https://github.com/Krishna141414/rag-travel-guide">github.com/Krishna141414/rag-travel-guide</a>
+  </div>
+</footer>
+
+<script>
+// ---------- timings (one place) ----------
+const PRESETS = {
+  slow:   { step: 2400, reveal: 900, typeMs: 40, typeCap: 8000, count: 1500, lines: 650, cards: 500 },
+  medium: { step: 1700, reveal: 700, typeMs: 30, typeCap: 6000, count: 1300, lines: 420, cards: 350 },
+  fast:   { step: 700,  reveal: 400, typeMs: 12, typeCap: 2500, count: 800,  lines: 150, cards: 120 },
+};
+const SPEED = { ...PRESETS.medium };
+const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+if (REDUCED) Object.assign(SPEED, PRESETS.fast);
+
+const D = window.DEMO;
+const $ = s => document.querySelector(s);
+const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const wait = ms => new Promise(r => setTimeout(r, ms));
+const fmt = n => n.toLocaleString('en-US');
+
+// ---------- hero: route map of the 25 destinations ----------
+const PLACES = { Leh: [34.15, 77.58], Manali: [32.24, 77.19], Shimla: [31.1, 77.17], Amritsar: [31.63, 74.87], Rishikesh: [30.1, 78.3],
+  Agra: [27.18, 78.0], Jaipur: [26.9, 75.8], Jaisalmer: [26.9, 70.9], Udaipur: [24.58, 73.7], Khajuraho: [24.85, 79.93], Varanasi: [25.3, 83.0],
+  Darjeeling: [27.04, 88.26], Gangtok: [27.33, 88.6], Kaziranga: [26.6, 93.4], Ajanta: [20.55, 75.7], Mahabaleshwar: [17.92, 73.66],
+  Goa: [15.3, 74.1], Hampi: [15.33, 76.46], Kodagu: [12.4, 75.7], Mysore: [12.3, 76.6], Ooty: [11.4, 76.7], Munnar: [10.09, 77.06],
+  Alappuzha: [9.5, 76.33], Pondicherry: [11.93, 79.83], Andaman: [11.7, 92.7] };
+const ROUTES = [['Leh', 'Manali', 'Shimla', 'Rishikesh', 'Agra', 'Khajuraho', 'Varanasi', 'Darjeeling', 'Gangtok', 'Kaziranga'],
+  ['Amritsar', 'Jaipur', 'Jaisalmer', 'Udaipur', 'Ajanta', 'Mahabaleshwar', 'Goa', 'Hampi', 'Kodagu', 'Mysore', 'Ooty', 'Munnar', 'Alappuzha'],
+  ['Mysore', 'Pondicherry', 'Andaman'], ['Agra', 'Jaipur']];
+const LEFT_LABELS = ['Amritsar', 'Kodagu', 'Darjeeling', 'Alappuzha', 'Ooty'];
+const xy = n => { const [lat, lon] = PLACES[n]; return [(lon - 68.5) * 21 + 10, (35.5 - lat) * 21 + 20]; };
+function drawMap() {
+  const svg = $('#map'), NS = 'http://www.w3.org/2000/svg';
+  const mk = (tag, attrs) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); return e; };
+  ROUTES.forEach((r, ri) => {
+    let d = '';
+    r.forEach((n, i) => {
+      const [x, y] = xy(n);
+      if (!i) { d = `M${x},${y}`; return; }
+      const [px, py] = xy(r[i - 1]), mx = (px + x) / 2, my = (py + y) / 2, bend = (i % 2 ? 1 : -1) * 0.18;
+      d += ` Q${mx - (y - py) * bend},${my + (x - px) * bend} ${x},${y}`;
+    });
+    svg.append(mk('path', { d, class: 'route-draw' }));
+    const p = mk('path', { d, class: 'route', id: 'route' + ri, style: `animation-duration:${2 + ri * .4}s` });
+    svg.append(p);
+    if (!REDUCED && ri < 3) {
+      const t = mk('circle', { r: 4.5, fill: ['#FDE68A', '#F97316', '#14B8A6'][ri] });
+      t.append(mk('animateMotion', { dur: `${14 + ri * 4}s`, repeatCount: 'indefinite', path: d, rotate: 'auto' }));
+      svg.append(t);
+    }
+  });
+  Object.keys(PLACES).forEach((n, i) => {
+    const [x, y] = xy(n), g = mk('g', { class: 'place' });
+    g.append(mk('circle', { cx: x, cy: y, r: 4, class: 'halo', style: `animation-delay:${(i * .37) % 3.2}s` }));
+    g.append(mk('circle', { cx: x, cy: y, r: 3.5 }));
+    const left = LEFT_LABELS.includes(n), up = n === 'Gangtok';     // a few labels move to avoid overlaps
+    const t = mk('text', { x: left ? x - 7 : x + 7, y: up ? y - 8 : y + 4, 'text-anchor': left ? 'end' : 'start' });
+    t.textContent = n; g.append(t);
+    svg.append(g);
+  });
+}
+
+// ---------- requirement cards ----------
+const ICONS = {
+  doc: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/>',
+  grid: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
+  search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
+  list: '<path d="M8 6h13M8 12h13M8 18h13"/><path d="M3.5 6h.01M3.5 12h.01M3.5 18h.01"/>',
+  chat: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/>',
+  shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 9 6 6M15 9l-6 6"/>',
+  chart: '<path d="M3 3v18h18"/><path d="M7 15v3M12 10v8M17 6v12"/>',
+};
+const REQS = [
+  { icon: 'doc', t: 'Ingestion & cleaning', d: '25 Wikipedia travel articles; pronunciation brackets, [refs], empty "()" and empty sections removed.', go: 1 },
+  { icon: 'grid', t: 'Chunking & embeddings', d: '~500-char chunks with 100-char overlap, each keeps title + chunk id; embedded with all-MiniLM-L6-v2.', go: 2 },
+  { icon: 'search', t: 'Vector storage & retrieval', d: 'FAISS index saved to index/; top-3 chunks by cosine similarity, shown as scored source cards.', go: 3 },
+  { icon: 'list', t: 'Prompt construction', d: 'System rules + numbered context chunks [1] [2] [3] + the question, "answer only from the context".', go: 4 },
+  { icon: 'chat', t: 'LLM response + sources', d: 'Local Qwen2.5-0.5B-Instruct, greedy decoding; answer cites sources like [1], linked to the cards.', go: 5 },
+  { icon: 'shield', t: 'Unanswerable questions', d: 'Best score below 0.50 -> "Not in documents" with no LLM call; the prompt also tells the LLM to say it does not know.', go: 'refuse' },
+  { icon: 'chart', t: 'Evaluation', d: '10 questions: retrieval hit, correct "not found" handling and response time, saved to results.md.', go: 'results' },
+];
+function drawReqs() {
+  REQS.forEach((r, i) => {
+    const b = el('button', 'req card reveal', `<span class="num">0${i + 1}</span><span class="check"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#052421" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5 9-10"/></svg></span>
+      <div class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICONS[r.icon]}</svg></div>
+      <h3>${r.t}</h3><p>${r.d}</p>`);
+    b.id = 'req' + i;
+    b.onclick = () => {
+      if (r.go === 'results') return $('#results').scrollIntoView();
+      if (r.go === 'refuse') {
+        const btn = [...document.querySelectorAll('.ex')].find(x => x.dataset.refuse === '1');
+        $('#demo').scrollIntoView();
+        if (btn) { btn.classList.remove('pulse'); void btn.offsetWidth; btn.classList.add('pulse'); }
+        return;
+      }
+      const p = document.getElementById('p' + r.go);
+      (p && p.classList.contains('show') ? p : $('#stepbar')).scrollIntoView({ block: 'center' });
+    };
+    $('#reqs').append(b);
+  });
+}
+const markReq = i => document.getElementById('req' + i)?.classList.add('done');
+
+// ---------- demo ----------
+const STEPS = ['Ingest & clean', 'Chunk & embed', 'Retrieve (FAISS)', 'Build prompt', 'LLM answer'];
+let runId = 0, live = false;
+function drawStepbar() {
+  STEPS.forEach((s, i) => {
+    const b = el('button', 'step', `<span class="dot">${i + 1}</span><span class="lbl">${s}</span>`);
+    b.id = 's' + (i + 1);
+    b.onclick = () => document.getElementById('p' + (i + 1))?.scrollIntoView({ block: 'center' });
+    $('#stepbar').append(b);
+  });
+}
+function drawExamples() {
+  D.examples.forEach((ex, i) => {
+    const r = ex.result, bad = r.status !== 'answered';
+    const b = el('button', 'ex', `<b>${esc(ex.label)}</b><small class="${bad ? 'bad' : ''}">${esc(ex.hint)}</small>`);
+    if (!r.llm_called) b.dataset.refuse = '1';
+    b.onclick = () => {
+      document.querySelectorAll('.ex').forEach(x => x.classList.remove('active'));
+      b.classList.add('active');
+      live ? runLive(r.question) : run(r);
+    };
+    $('#examples').append(b);
+  });
+}
+
+function setStep(n, state) {
+  if (n > STEPS.length) {                    // run finished: every non-skipped step is "done"
+    document.querySelectorAll('.step:not(.skip)').forEach(s => { s.classList.remove('on'); s.classList.add('done'); });
+    return void ($('#fill').style.width = '80%');
+  }
+  for (let i = 1; i <= STEPS.length; i++) {
+    const s = document.getElementById('s' + i);
+    s.classList.remove('on');
+    if (i > n) s.classList.remove('done', 'skip');
+  }
+  if (n > 0) {
+    const s = document.getElementById('s' + n);
+    s.classList.add(state || 'on');
+    for (let i = 1; i < n; i++) if (!document.getElementById('s' + i).classList.contains('skip')) document.getElementById('s' + i).classList.add('done');
+  }
+  $('#fill').style.width = n ? `${(n - 1) / (STEPS.length - 1) * 80}%` : '0';
+}
+function panel(n, title, sub) {
+  const p = el('div', 'panel card', `<h3><span class="n">${n}</span>${title}</h3><p class="sub">${sub}</p>`);
+  p.id = 'p' + n;
+  p.style.setProperty('--reveal', SPEED.reveal + 'ms');
+  $('#panels').append(p);
+  requestAnimationFrame(() => p.classList.add('show'));
+  return p;
+}
+const scrollTo = e => { const r = e.getBoundingClientRect(); if (r.top > innerHeight * .75 || r.top < 0) e.scrollIntoView({ block: 'center' }); };
+
+async function run(r) {
+  const id = ++runId, alive = () => id === runId, S = D.stats;
+  $('#panels').innerHTML = '';
+  setStep(0);
+  $('#qbanner').innerHTML = `<span class="q">"${esc(r.question)}"</span>`;
+  const pause = async (k = 1) => { await wait(SPEED.step * k); return alive(); };
+
+  // 1. ingestion & cleaning
+  setStep(1);
+  const ing = r.ingest;
+  const p1 = panel(1, 'Ingestion & cleaning', `The library was loaded from ${S.articles} Wikipedia articles and cleaned once. Here is the opening of "${esc(ing.title)}", the article this question retrieves most.`);
+  p1.insertAdjacentHTML('beforeend', `<div class="chips"><span class="chip"><b>${S.articles}</b> articles</span><span class="chip"><b>${fmt(S.raw_chars)}</b> raw chars &rarr; <b>${fmt(S.clean_chars)}</b> cleaned</span><span class="chip">removed: IPA / pronunciation, [refs], empty (), empty sections, extra spaces</span></div>
+    <div class="two"><div class="textbox"><span class="tag">Raw text (red = removed)</span>${ing.segments.map(([t, rm]) => rm ? `<del class="rm">${esc(t)}</del>` : esc(t)).join('')}</div>
+    <div class="textbox"><span class="tag">Cleaned text</span>${esc(ing.clean)}</div></div>`);
+  markReq(0); scrollTo(p1);
+  if (!await pause()) return;
+
+  // 2. chunking & embeddings
+  setStep(2);
+  const ex = r.chunking.example;
+  const p2 = panel(2, 'Chunking & embeddings', `Cleaned articles are cut into ~${S.chunk_size}-character chunks with ${S.overlap} characters of overlap, then every chunk and the question become ${S.dim}-number vectors.`);
+  const vec = r.query_vec.map(v => `<i style="height:${Math.max(6, Math.abs(v) * 260)}%;max-height:100%;background:${v >= 0 ? 'var(--saffron)' : 'var(--teal)'}"></i>`).join('');
+  p2.insertAdjacentHTML('beforeend', `<div class="chips"><span class="chip"><b>${fmt(S.chunks)}</b> chunks total</span><span class="chip">avg <b>${S.avg_chunk}</b> chars</span><span class="chip"><b>${r.chunking.article_chunks}</b> chunks from ${esc(ex.title)}</span><span class="chip">${esc(S.embed_model.split('/')[1])}</span></div>
+    <div class="two"><div class="textbox"><span class="tag">Example chunk: ${esc(ex.title)} #${ex.chunk_id} (${ex.text.length} chars)</span>${esc(ex.text)}</div>
+    <div class="textbox"><span class="tag">Question embedding: first ${r.query_vec.length} of ${S.dim} dimensions</span><div class="vec" id="vec">${vec}</div>
+    <div class="note">Saffron = positive, teal = negative. Vectors are L2-normalised, so the inner product in FAISS is the cosine similarity.</div></div></div>`);
+  requestAnimationFrame(() => setTimeout(() => $('#vec')?.classList.add('go'), 60));
+  markReq(1); scrollTo(p2);
+  if (!await pause()) return;
+
+  // 3. retrieval
+  setStep(3);
+  const thr = r.threshold, ok = r.llm_called;
+  const p3 = panel(3, 'Vector storage & retrieval', `FAISS (exact inner-product index, ${fmt(S.chunks)} vectors) returns the top ${S.k} chunks. Their scores are compared with the threshold of ${thr.toFixed(2)}.`);
+  const list = el('div', 'sources');
+  p3.append(list);
+  r.sources.forEach((s, i) => {
+    const c = el('div', 'src', `<div class="src-head"><span class="id">[${i + 1}]</span><span class="t">${esc(s.title)}</span><span class="cid">chunk #${s.chunk_id}</span><span class="sc">${s.score.toFixed(3)}</span></div>
+      <div class="bar"><div class="v ${s.score < thr ? 'low' : ''}"></div><div class="thr" style="left:${thr * 100}%" data-l="${i ? '' : 'threshold ' + thr.toFixed(2)}"></div></div>
+      <details><summary>Show chunk text</summary><p>${esc(s.text)}</p></details>`);
+    c.id = 'src' + (i + 1);
+    list.append(c);
+    setTimeout(() => { c.classList.add('in'); c.querySelector('.v').style.width = (s.score * 100) + '%'; }, 80 + i * SPEED.cards);
+  });
+  const gate = el('div', 'gate ' + (ok ? 'ok' : 'no'), ok
+    ? `<span class="big" style="color:var(--teal)">${r.best_score.toFixed(3)} &ge; ${thr.toFixed(2)}</span><span>Best score passes the threshold, so the question goes to the LLM.</span>`
+    : `<span class="big" style="color:var(--red)">${r.best_score.toFixed(3)} &lt; ${thr.toFixed(2)}</span><span>Best score is below the threshold: the documents don't cover this. Refusing without calling the LLM.</span>`);
+  p3.append(gate);
+  setTimeout(() => gate.classList.add('in'), 120 + S.k * SPEED.cards);
+  markReq(2); scrollTo(p3);
+  if (!await pause(1.3)) return;
+
+  // 4. prompt construction
+  const p4 = panel(4, 'Prompt construction', ok ? 'The prompt is assembled from the rules, the numbered chunks and the question. This exact text is sent to the LLM.' : 'No prompt is sent: the retrieval gate stopped the question.');
+  if (ok) {
+    setStep(4);
+    const box = el('div', 'prompt');
+    p4.append(box);
+    const [sys, user] = r.messages, ctx = user.content.split('\n\nQuestion: ')[0].replace(/^Context:\n/, '').split(/\n\n(?=\[\d\] )/);
+    const lines = [['sys', 'SYSTEM', sys.content], ...ctx.map((c, i) => ['ctx', `CONTEXT [${i + 1}]`, c.replace(/^\[\d\] /, '')]), ['q', 'QUESTION', 'Question: ' + user.content.split('\n\nQuestion: ')[1]]];
+    for (const [cls, k, txt] of lines) {
+      const l = el('div', 'pl ' + cls, `<span class="k">${k}</span>\n${esc(txt)}`);
+      if (cls === 'ctx') l.id = 'pl' + k.match(/\d/)[0];
+      box.append(l);
+      requestAnimationFrame(() => l.classList.add('in'));
+      box.scrollTop = box.scrollHeight;
+      await wait(SPEED.lines);
+      if (!alive()) return;
+    }
+    box.scrollTop = 0;
+  } else {
+    setStep(4, 'skip');
+    p4.insertAdjacentHTML('beforeend', `<div class="skipbox">Skipped. Best score ${r.best_score.toFixed(3)} &lt; threshold ${thr.toFixed(2)}, so no context is good enough to answer from. Sending it to the LLM would only invite a made-up answer.</div>`);
+  }
+  markReq(3); scrollTo(p4);
+  if (!await pause()) return;
+
+  // 5. LLM answer
+  setStep(5, ok ? 'on' : 'skip');
+  const answered = r.status === 'answered';
+  const p5 = panel(5, ok ? 'LLM response' : 'Response (no LLM call)', ok ? `${esc(S.llm.split('/')[1])} on CPU, greedy decoding (temperature 0), max 160 new tokens.` : 'The fixed "not found" message is returned straight away.');
+  p5.classList.add('final');
+  p5.insertAdjacentHTML('beforeend', `<span class="status ${answered ? 'ok' : 'no'}">${answered ? '&#10003; Answered' : '&#10005; Not in documents'}</span>
+    <div class="answer" id="answer"></div>
+    <div class="meta"><span class="chip">retrieve ${r.ms.retrieve} ms</span><span class="chip">${ok ? `generate ${(r.ms.generate / 1000).toFixed(1)} s` : 'LLM not called'}</span><span class="chip">total ${r.ms.total >= 1000 ? (r.ms.total / 1000).toFixed(1) + ' s' : r.ms.total + ' ms'}</span><span class="chip">best score ${r.best_score.toFixed(3)} / threshold ${thr.toFixed(2)}</span></div>
+    ${answered ? `<div class="note">Click a citation to highlight its source card. ${r.auto_citations ? 'Dashed <b>[n]*</b> = the model left that sentence uncited, so the citation was added by word overlap with the sources.' : 'All citations were written by the LLM.'}</div>` : ''}
+    ${!answered && ok ? '<div class="note">The best score passed the threshold, but the context did not contain the answer, so the LLM followed the prompt rule and said it does not know.</div>' : ''}
+    <details class="tech"><summary>Show technical details</summary>
+      <p class="note">Exact prompt (chat messages):</p><pre>${esc(r.messages.map(m => `<|${m.role}|>\n${m.content}`).join('\n\n'))}</pre>
+      ${ok ? `<p class="note">Raw LLM output:</p><pre>${esc(r.raw_answer)}</pre>` : ''}
+      <p class="note">Response JSON:</p><pre>${esc(JSON.stringify({ status: r.status, llm_called: r.llm_called, best_score: r.best_score, threshold: r.threshold, auto_citations: r.auto_citations, ms: r.ms, sources: r.sources.map(s => ({ title: s.title, chunk_id: s.chunk_id, score: s.score })) }, null, 2))}</pre>
+    </details>`);
+  markReq(4); if (!ok || !answered) markReq(5);
+  scrollTo(p5);
+  await typeAnswer($('#answer'), r.answer, alive);
+  if (alive()) setStep(6);
+}
+
+async function typeAnswer(box, text, alive) {
+  // split into plain characters and citation tokens like [2] or [2]*
+  const parts = text.split(/(\[\d\]\*?)/).filter(Boolean);
+  const total = parts.reduce((a, p) => a + (/^\[\d\]/.test(p) ? 1 : p.length), 0);
+  const per = REDUCED ? 0 : Math.min(SPEED.typeMs, SPEED.typeCap / Math.max(total, 1));
+  const caret = el('span', 'caret');
+  box.append(caret);
+  for (const p of parts) {
+    const m = p.match(/^\[(\d)\](\*?)$/);
+    if (m) {
+      const c = el('button', 'cite' + (m[2] ? ' auto' : ''), `[${m[1]}]${m[2]}`);
+      c.title = m[2] ? `Source ${m[1]} (citation added automatically)` : `Source ${m[1]}`;
+      c.onclick = () => flashSource(+m[1]);
+      box.insertBefore(c, caret);
+      if (per) await wait(per * 4);
+    } else if (!per) {
+      box.insertBefore(document.createTextNode(p), caret);
+    } else {
+      const node = document.createTextNode('');
+      box.insertBefore(node, caret);
+      for (const ch of p) { node.data += ch; await wait(per); if (!alive()) return; }
+    }
+    if (!alive()) return;
+  }
+  caret.remove();
+}
+function flashSource(n) {
+  const s = document.getElementById('src' + n), l = document.getElementById('pl' + n);
+  if (!s) return;
+  s.scrollIntoView({ block: 'center' });
+  [s, l].forEach(e => { if (!e) return; e.classList.remove('flash'); void e.offsetWidth; e.classList.add('flash'); setTimeout(() => e.classList.remove('flash'), 2200); });
+}
+
+// ---------- live mode (only when python app.py is running) ----------
+async function checkLive() {
+  if (location.protocol === 'file:') return;
+  try {
+    const c = new AbortController(); setTimeout(() => c.abort(), 2000);
+    const r = await fetch('api/health', { signal: c.signal });
+    if (r.ok && (await r.json()).ok) $('#live').classList.add('show');
+  } catch (e) { /* static hosting: keep the instant demo only */ }
+}
+$('#liveSwitch').onclick = () => {
+  live = !live;
+  $('#liveSwitch').classList.toggle('on', live);
+  $('#askrow').classList.toggle('show', live);
+  if (live) $('#askInput').focus();
+};
+$('#askrow').onsubmit = e => { e.preventDefault(); const q = $('#askInput').value.trim(); if (q) runLive(q); };
+async function runLive(q) {
+  const id = ++runId;
+  $('#panels').innerHTML = '';
+  setStep(0);
+  $('#qbanner').innerHTML = `<span class="spinner"></span><span><span class="q">"${esc(q)}"</span><br><span class="muted">Working... (CPU model, ~10-30 s)</span></span>`;
+  try {
+    const res = await fetch('api/ask', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question: q }) });
+    const r = await res.json();
+    if (!res.ok) throw new Error(r.error || res.status);
+    if (id === runId) run(r);
+  } catch (err) {
+    if (id === runId) $('#qbanner').innerHTML = `<span style="color:#FDA4AF">Live request failed: ${esc(err.message)}. Is <code>python app.py</code> still running?</span>`;
+  }
+}
+
+// ---------- speed toggle ----------
+document.querySelectorAll('#speed button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('#speed button').forEach(x => x.classList.toggle('on', x === b));
+  Object.assign(SPEED, PRESETS[b.dataset.s]);
+});
+
+// ---------- results ----------
+function countUp(e, to, dec = 0, suffix = '') {
+  const t0 = performance.now();
+  const tick = now => {
+    const k = Math.min(1, (now - t0) / SPEED.count), v = to * (1 - Math.pow(1 - k, 3));
+    e.innerHTML = v.toFixed(dec) + suffix;
+    if (k < 1) requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
+function drawResults() {
+  const s = D.results.summary, rows = D.results.rows;
+  $('#resultsLead').textContent = `Run with python evaluate.py: top-${s.k}, threshold ${s.threshold}, ${D.stats.llm.split('/')[1]} on CPU. Models are loaded before timing.`;
+  const tiles = [
+    ['Retrieval hit (right article in top-3)', s.retrieval_hit, s.n_answerable],
+    ['Answerable questions answered', s.answered, s.n_answerable],
+    ['Unanswerable correctly refused', s.not_found_correct, s.n_unanswerable],
+    ['Avg time when the LLM answers', s.avg_seconds_answered, null, 1, ' s'],
+    ['Avg time for a refusal (no LLM)', s.avg_seconds_refused * 1000, null, 0, ' ms'],
+    ['Citations written by the LLM itself', s.llm_cited, s.n_cited_checked, 0, '', 'warn'],
+  ];
+  tiles.forEach(([l, v, of, dec = 0, suf = '', cls = '']) => {
+    const t = el('div', 'stat card reveal ' + cls, `<div class="v"><span>0</span>${of != null ? `<small>/${of}</small>` : ''}</div><div class="l">${l}</div>`);
+    t.dataset.v = v; t.dataset.dec = dec; t.dataset.suf = suf;
+    $('#stats').append(t);
+  });
+  $('#table').innerHTML = `<tr><th>Question</th><th>Expected</th><th>Top-3 sources</th><th>Best score</th><th>Status</th><th>Time</th></tr>` + rows.map(x =>
+    `<tr><td>${esc(x.question)}</td><td>${esc(x.expected)}</td><td>${esc(x.top_sources.join(', '))}</td><td class="num">${x.best_score.toFixed(3)}</td>
+     <td><span class="pill ${x.correct ? 'ok' : 'no'}">${x.status === 'answered' ? 'answered' : 'not found'} ${x.correct ? '&#10003;' : '&#10005;'}</span></td><td class="num">${x.seconds} s</td></tr>`).join('');
+  D.findings.forEach(f => $('#findings').append(el('li', '', esc(f))));
+}
+let chartsDone = false;
+function drawCharts() {
+  if (chartsDone || !window.Chart) return; chartsDone = true;
+  const rows = D.results.rows, thr = D.results.summary.threshold;
+  const labels = rows.map(x => x.question.replace(/\?$/, '').replace(/^(What|Which|Why|When|Who|How) (is|are|can|did|has)? ?/i, '').slice(0, 26));
+  Chart.defaults.color = '#93B3AD'; Chart.defaults.font.family = 'Inter'; Chart.defaults.borderColor = 'rgba(253,230,138,.08)';
+  const anim = { duration: SPEED.count, easing: 'easeOutCubic' };
+  const unans = x => x.expected === '(not in documents)';
+  new Chart($('#chScores'), {
+    data: { labels, datasets: [
+      { type: 'bar', label: 'Best score', data: rows.map(x => x.best_score), backgroundColor: rows.map(x => unans(x) ? 'rgba(244,63,94,.75)' : 'rgba(20,184,166,.8)'), borderRadius: 6 },
+      { type: 'line', label: 'Threshold 0.50', data: rows.map(() => thr), borderColor: '#FDE68A', borderDash: [6, 5], pointRadius: 0, borderWidth: 2 }] },
+    options: { maintainAspectRatio: false, animation: anim, scales: { y: { min: 0, max: 1 }, x: { ticks: { maxRotation: 60, minRotation: 40, font: { size: 10 } } } },
+      plugins: { legend: { labels: { boxWidth: 12 } }, tooltip: { callbacks: { title: i => rows[i[0].dataIndex].question } } } }
+  });
+  new Chart($('#chTime'), {
+    type: 'bar',
+    data: { labels, datasets: [{ label: 'Seconds', data: rows.map(x => x.seconds), backgroundColor: rows.map(x => x.status === 'answered' ? 'rgba(249,115,22,.8)' : 'rgba(253,230,138,.7)'), borderRadius: 6 }] },
+    options: { maintainAspectRatio: false, animation: anim, scales: { x: { ticks: { maxRotation: 60, minRotation: 40, font: { size: 10 } } } },
+      plugins: { legend: { display: false }, tooltip: { callbacks: { title: i => rows[i[0].dataIndex].question, label: c => `${c.raw} s (${rows[c.dataIndex].llm_called ? 'LLM called' : 'refused, no LLM'})` } } } }
+  });
+}
+
+// ---------- how it works: code ----------
+function highlight(src) {
+  const re = /(#.*$)|("""[\s\S]*?"""|"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*')|\b(def|return|if|else|elif|for|in|not|and|or|import|from|lambda|with|while|is|None|True|False)\b/gm;
+  let out = '', last = 0, m;
+  while ((m = re.exec(src))) {
+    out += esc(src.slice(last, m.index));
+    out += `<span class="tok-${m[1] ? 'c' : m[2] ? 's' : 'k'}">${esc(m[0])}</span>`;
+    last = re.lastIndex;
+  }
+  return out + esc(src.slice(last));
+}
+function drawCode() {
+  Object.entries(D.code).forEach(([name, src]) => {
+    $('#code').append(el('div', 'codecard card reveal', `<div class="fn"><i></i>${esc(name)}</div><pre>${highlight(src)}</pre>`));
+  });
+}
+
+// ---------- boot ----------
+function init() {
+  const S = D.stats;
+  $('#heroMeta').innerHTML = [`${S.articles} Wikipedia articles`, `${fmt(S.chunks)} chunks`, 'MiniLM + FAISS', 'Qwen2.5-0.5B on CPU', 'no API keys'].map(t => `<span>${t}</span>`).join('');
+  $('#flowChunks').textContent = `${fmt(S.chunks)} vectors x ${S.dim}`;
+  drawMap(); drawReqs(); drawStepbar(); drawExamples(); drawResults(); drawCode(); checkLive();
+  const io = new IntersectionObserver(es => es.forEach(e => {
+    if (!e.isIntersecting) return;
+    e.target.classList.add('in');
+    if (e.target.classList.contains('stat')) { const d = e.target.dataset; countUp(e.target.querySelector('span'), +d.v, +d.dec, d.suf); }
+    if (e.target.classList.contains('chartbox')) drawCharts();
+    io.unobserve(e.target);
+  }), { threshold: .15 });
+  document.querySelectorAll('.reveal').forEach(e => io.observe(e));
+  new IntersectionObserver(es => es.forEach(e => e.isIntersecting && markReq(6)), { threshold: .3 }).observe($('#stats'));
+  const auto = location.hash.match(/^#run=(\d)$/);           // e.g. index.html#run=3 starts that example (handy for recording)
+  if (auto) document.querySelectorAll('.ex')[+auto[1]]?.click();
+}
+init();
+</script>
+</body>
+</html>

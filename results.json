@@ -1,0 +1,188 @@
+{
+ "summary": {
+  "retrieval_hit": 7,
+  "n_answerable": 7,
+  "answered": 7,
+  "not_found_correct": 3,
+  "n_unanswerable": 3,
+  "llm_cited": 1,
+  "n_cited_checked": 7,
+  "avg_seconds": 2.34,
+  "avg_seconds_answered": 3.34,
+  "avg_seconds_refused": 0.01,
+  "threshold": 0.5,
+  "k": 3
+ },
+ "rows": [
+  {
+   "question": "Which emperor built the Taj Mahal?",
+   "expected": "Agra",
+   "top_sources": [
+    "Agra",
+    "Agra",
+    "Agra"
+   ],
+   "best_score": 0.6826,
+   "status": "answered",
+   "llm_called": true,
+   "retrieval_hit": true,
+   "correct": true,
+   "llm_cited": false,
+   "answer": "Shah Jahan built the Taj Mahal [2]*.",
+   "seconds": 2.49
+  },
+  {
+   "question": "What can you see in Kaziranga National Park?",
+   "expected": "Kaziranga National Park",
+   "top_sources": [
+    "Kaziranga National Park",
+    "Kaziranga National Park",
+    "Kaziranga National Park"
+   ],
+   "best_score": 0.6729,
+   "status": "answered",
+   "llm_called": true,
+   "retrieval_hit": true,
+   "correct": true,
+   "llm_cited": false,
+   "answer": "Visitors can observe various wildlife species such as Indian rhinoceros, Asian elephant, wild water buffalo, swamp deer, tiger, and fishing cat [3]*.",
+   "seconds": 4.2
+  },
+  {
+   "question": "Why is Rishikesh called the yoga capital of the world?",
+   "expected": "Rishikesh",
+   "top_sources": [
+    "Rishikesh",
+    "Rishikesh",
+    "Rishikesh"
+   ],
+   "best_score": 0.7303,
+   "status": "answered",
+   "llm_called": true,
+   "retrieval_hit": true,
+   "correct": true,
+   "llm_cited": false,
+   "answer": "The city hosts the International Yoga Festival annually on the first week of March since 1999, giving it the nickname of Yoga Capital of the World [1]*.",
+   "seconds": 4.33
+  },
+  {
+   "question": "When did Goa become part of India?",
+   "expected": "Goa",
+   "top_sources": [
+    "Goa",
+    "Goa",
+    "Goa"
+   ],
+   "best_score": 0.6552,
+   "status": "answered",
+   "llm_called": true,
+   "retrieval_hit": true,
+   "correct": true,
+   "llm_cited": true,
+   "answer": "December 1961 [2]",
+   "seconds": 2.33
+  },
+  {
+   "question": "What is the Golden Temple in Amritsar?",
+   "expected": "Amritsar",
+   "top_sources": [
+    "Amritsar",
+    "Amritsar",
+    "Varanasi"
+   ],
+   "best_score": 0.7125,
+   "status": "answered",
+   "llm_called": true,
+   "retrieval_hit": true,
+   "correct": true,
+   "llm_cited": false,
+   "answer": "The Golden Temple in Amritsar is the holiest site and most-visited gurudwara in Sikhism [1]*.",
+   "seconds": 3.74
+  },
+  {
+   "question": "What are the Ajanta Caves known for?",
+   "expected": "Ajanta Caves",
+   "top_sources": [
+    "Ajanta Caves",
+    "Ajanta Caves",
+    "Ajanta Caves"
+   ],
+   "best_score": 0.7738,
+   "status": "answered",
+   "llm_called": true,
+   "retrieval_hit": true,
+   "correct": true,
+   "llm_cited": false,
+   "answer": "The Ajanta Caves are renowned for their masterpieces of Buddhist religious art, including exquisite paintings and rock-cut sculptures that depict scenes of emotion through gesture, pose, and form [1]*.",
+   "seconds": 4.49
+  },
+  {
+   "question": "Which city has a famous palace lit up during Dasara?",
+   "expected": "Mysore",
+   "top_sources": [
+    "Mysore",
+    "Mysore",
+    "Mysore"
+   ],
+   "best_score": 0.6244,
+   "status": "answered",
+   "llm_called": true,
+   "retrieval_hit": true,
+   "correct": true,
+   "llm_cited": false,
+   "answer": "Mysore [1]*",
+   "seconds": 1.81
+  },
+  {
+   "question": "What is the capital of Brazil?",
+   "expected": "(not in documents)",
+   "top_sources": [
+    "Goa",
+    "Goa",
+    "Goa"
+   ],
+   "best_score": 0.4732,
+   "status": "not_found",
+   "llm_called": false,
+   "retrieval_hit": null,
+   "correct": true,
+   "llm_cited": null,
+   "answer": "I couldn't find this in the travel guide documents.",
+   "seconds": 0.01
+  },
+  {
+   "question": "Who is the current CEO of Tesla?",
+   "expected": "(not in documents)",
+   "top_sources": [
+    "Jaipur",
+    "Jaipur",
+    "Alappuzha"
+   ],
+   "best_score": 0.316,
+   "status": "not_found",
+   "llm_called": false,
+   "retrieval_hit": null,
+   "correct": true,
+   "llm_cited": null,
+   "answer": "I couldn't find this in the travel guide documents.",
+   "seconds": 0.01
+  },
+  {
+   "question": "How tall is Mount Everest?",
+   "expected": "(not in documents)",
+   "top_sources": [
+    "Gangtok",
+    "Darjeeling",
+    "Darjeeling"
+   ],
+   "best_score": 0.4934,
+   "status": "not_found",
+   "llm_called": false,
+   "retrieval_hit": null,
+   "correct": true,
+   "llm_cited": null,
+   "answer": "I couldn't find this in the travel guide documents.",
+   "seconds": 0.01
+  }
+ ]
+}
